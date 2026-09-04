@@ -1,4 +1,6 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const stepConfig = {
   tool_call:      { icon: "🔧", label: "Tool Call",   bg: "bg-yellow-50", border: "border-yellow-200", text: "text-yellow-700" },
@@ -61,7 +63,42 @@ export default function ChatMessage({ message }) {
                 : "bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm"
             }`}
           >
-            {message.content}
+            {isUser ? (
+              message.content
+            ) : (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: (props) => (
+                    <div className="overflow-x-auto my-2">
+                      <table className="border-collapse w-full text-xs" {...props} />
+                    </div>
+                  ),
+                  th: ({ children }) => (
+                    <th className="border border-gray-300 px-3 py-1.5 bg-gray-50 font-semibold text-left text-gray-700">
+                      {children}
+                    </th>
+                  ),
+                  td: ({ children }) => (
+                    <td className="border border-gray-300 px-3 py-1.5 text-gray-600">
+                      {children}
+                    </td>
+                  ),
+                  ul: (props) => <ul className="list-disc list-inside space-y-0.5 my-1" {...props} />,
+                  ol: (props) => <ol className="list-decimal list-inside space-y-0.5 my-1" {...props} />,
+                  li: (props) => <li className="text-gray-700" {...props} />,
+                  p: (props) => <p className="mb-1.5 last:mb-0" {...props} />,
+                  strong: (props) => <strong className="font-semibold text-gray-900" {...props} />,
+                  code: ({ children }) => (
+                    <code className="bg-gray-100 text-purple-700 px-1 py-0.5 rounded font-mono text-xs">
+                      {children}
+                    </code>
+                  ),
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            )}
           </div>
         </div>
 
