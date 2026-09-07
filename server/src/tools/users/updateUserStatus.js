@@ -1,5 +1,5 @@
-import User from "../models/User.js";
-import { USER_STATUS } from "../constants/userStatus.js";
+import User from "../../models/User.js";
+import { USER_STATUS } from "../../constants/userStatus.js";
 
 export const declaration = {
   name: "update_user_status",

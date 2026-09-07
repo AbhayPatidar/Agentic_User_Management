@@ -1,5 +1,5 @@
 import Groq from "groq-sdk";
-import { toolDeclarations } from "../tools/index.js";
+import { toolDeclarations } from "../tools/registry.js";
 import { executeTool } from "./toolExecutor.js";
 import { SYSTEM_INSTRUCTION } from "./prompts/userManagement.js";
 

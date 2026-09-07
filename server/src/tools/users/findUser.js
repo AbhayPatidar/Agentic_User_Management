@@ -1,19 +1,20 @@
-import User from "../models/User.js";
+import User from "../../models/User.js";
 
 export const declaration = {
   name: "find_user",
   description:
-    "Search for existing users by email (exact) or name (partial match). Always call this before update_user or delete_user to get the userId.",
+    "Search for users by email (exact) or name (partial match). Omit both parameters to return all users. Do NOT pass null for any field — simply omit parameters you don't need.",
   parameters: {
     type: "object",
     properties: {
-      email: { type: "string", description: "Find by exact email address" },
-      name:  { type: "string", description: "Find by full name — partial match, case-insensitive" },
+      email: { type: "string", description: "Find by exact email address. Omit if not filtering by email." },
+      name:  { type: "string", description: "Find by full name — partial match, case-insensitive. Omit if not filtering by name." },
     },
+    required: [],
   },
 };
 
-export async function execute({ email, name }) {
+export async function execute({ email, name } = {}) {
   const filter = { isDeleted: false };
   if (email) filter.email    = email.toLowerCase().trim();
   if (name)  filter.fullName = { $regex: name.trim(), $options: "i" };

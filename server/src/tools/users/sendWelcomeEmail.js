@@ -1,7 +1,7 @@
 import { render } from "@react-email/render";
 import { createElement } from "react";
-import { WelcomeEmail } from "../views/WelcomeEmail.js";
-import { sendMail } from "../services/emailService.js";
+import { WelcomeEmail } from "../../views/WelcomeEmail.js";
+import { sendMail } from "../../services/emailService.js";
 
 export const declaration = {
   name: "send_welcome_email",

@@ -1,8 +1,7 @@
 import bcrypt from "bcryptjs";
-import User from "../models/User.js";
-import { USER_STATUS } from "../constants/userStatus.js";
+import User from "../../models/User.js";
+import { USER_STATUS } from "../../constants/userStatus.js";
 
-// Declaration — Gemini uses this schema to know when and how to call this tool
 export const declaration = {
   name: "create_user_in_db",
   description:
@@ -19,7 +18,6 @@ export const declaration = {
   },
 };
 
-// Executor — bcrypt hashes the plain password, then saves to MongoDB
 export async function execute({ fullName, email, password, isAutoPassword }) {
   const hashed = await bcrypt.hash(password, 10);
   const user = await User.create({
