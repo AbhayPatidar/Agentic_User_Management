@@ -62,7 +62,7 @@ export async function runConversationAgent(incomingMessages) {
     }
 
     // ── Branch B: Final conversational reply ─────────────────────────────
-    const reply = message.content ?? "Done.";
+    const reply = message?.content || "Done.";
     return { reply, agentSteps };
   }
 }
