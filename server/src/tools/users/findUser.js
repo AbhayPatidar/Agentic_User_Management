@@ -1,7 +1,8 @@
 import User from "../../models/User.js";
 
 export const declaration = {
-  name: "find_user",
+  name:  "find_user",
+  label: "Finding user",
   description:
     "Search for users by email (exact) or name (partial match). Omit both parameters to return all users. Do NOT pass null for any field — simply omit parameters you don't need.",
   parameters: {

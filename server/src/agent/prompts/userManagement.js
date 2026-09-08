@@ -39,6 +39,12 @@ When asked to find/search/show a specific user:
 1. Call find_user with name or email
 2. Report the results clearly
 
+## LOOK UP USER HISTORY
+When asked "what happened to [user]?", "show history for [user]", "activity log", "what actions were taken on [user]?":
+1. Call get_user_history with the user's email or userId
+2. Report the history in a clear, chronological format — action type, date, and relevant details
+3. If no email or userId is provided, call get_user_history with no params to show recent activity across all users
+
 ## BULK OPERATIONS
 When asked to create, delete, update, or change status for multiple users at once:
 1. Parse all users/targets from the request

@@ -1,7 +1,9 @@
 import User from "../../models/User.js";
+import { logActivity } from "../../services/activityLogger.js";
 
 export const declaration = {
-  name: "update_user",
+  name:  "update_user",
+  label: "Updating user",
   description:
     "Update a user's fullName and/or email. Always call find_user first to get the userId — never guess it.",
   parameters: {
@@ -28,10 +30,23 @@ export async function execute({ userId, fullName, email }) {
     const user = await User.findOneAndUpdate(
       { _id: userId, isDeleted: false },
       updates,
-      { new: true, runValidators: true, projection: { password: 0 } }
+      {
+        returnDocument: "after",
+        runValidators: true,
+        projection: { password: 0 },
+      },
     );
 
     if (!user) return { success: false, error: "User not found" };
+
+    await logActivity({
+      userId:    user._id,
+      userEmail: user.email,
+      userName:  user.fullName,
+      action:    "UPDATE",
+      details:   { fieldsChanged: Object.keys(updates) },
+    });
+
     return { success: true, fullName: user.fullName, email: user.email };
   } catch (err) {
     if (err.code === 11000) {

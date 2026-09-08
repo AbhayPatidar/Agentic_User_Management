@@ -4,7 +4,8 @@ import { WelcomeEmail } from "../../views/WelcomeEmail.js";
 import { sendMail } from "../../services/emailService.js";
 
 export const declaration = {
-  name: "send_welcome_email",
+  name:  "send_welcome_email",
+  label: "Sending email",
   description:
     "Sends a welcome email to the newly created user. If isAutoPassword is true, include the tempPassword in the email body so the user knows their login credentials.",
   parameters: {

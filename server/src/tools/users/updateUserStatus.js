@@ -1,8 +1,10 @@
 import User from "../../models/User.js";
 import { USER_STATUS } from "../../constants/userStatus.js";
+import { logActivity } from "../../services/activityLogger.js";
 
 export const declaration = {
-  name: "update_user_status",
+  name:  "update_user_status",
+  label: "Updating status",
   description:
     "Change a user's status to ACTIVE, INACTIVE, or BLOCKED. When blocking, a blockReason is required. Always call find_user first to get the userId.",
   parameters: {
@@ -41,8 +43,20 @@ export async function execute({ userId, status, blockReason }) {
   const user = await User.findOneAndUpdate(
     { _id: userId, isDeleted: false },
     updates,
-    { new: true, projection: { password: 0 } }
+    { returnDocument: "after", projection: { password: 0 } },
   );
+
+  await logActivity({
+    userId:    user._id,
+    userEmail: user.email,
+    userName:  user.fullName,
+    action:    "STATUS_CHANGE",
+    details:   {
+      oldStatus:   existing.status,
+      newStatus:   user.status,
+      blockReason: user.blockReason ?? null,
+    },
+  });
 
   return {
     success:     true,

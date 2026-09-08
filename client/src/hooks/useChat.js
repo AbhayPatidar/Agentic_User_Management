@@ -1,59 +1,92 @@
-import { useState } from "react";
-import axios from "axios";
+import { useEffect, useRef, useState } from "react";
+import { chatSocket } from "../socket/index.js";
+import { CHAT_EVENTS } from "../socket/events.js";
+
+const initialMessage = {
+  role: "assistant",
+  content: "Hi! I'm your user management assistant. I can create, update, delete, and manage user accounts.",
+  agentSteps: [],
+};
 
 export function useChat() {
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content:
-        "Hi! I'm your user management assistant. I can create, update, delete, and manage user accounts.\n\nTry something like:\n• \"Create John Doe, john@example.com\"\n• \"Block jane@example.com for spamming\"\n• \"Update email of John Doe to johndoe@example.com\"\n• \"Delete alex@example.com\"",
-      agentSteps: [],
-    },
-  ]);
-  const [loading, setLoading] = useState(false);
+  const [messages,    setMessages]   = useState([initialMessage]);
+  const [agentSteps,  setAgentSteps] = useState([]);
+  const [isThinking,  setIsThinking]  = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
 
-  async function sendMessage(content) {
-    const userMessage = { role: "user", content };
+  // ref so REPLY handler always sees latest accumulated steps (no stale closure)
+  const pendingStepsRef = useRef([]);
 
-    // Append user message immediately for instant UI feedback
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
-    setLoading(true);
+  useEffect(() => {
+    chatSocket.connect();
 
-    try {
-      // Send full conversation history so the agent has context
-      const { data } = await axios.post("/api/chat", {
-        messages: updatedMessages.map(({ role, content }) => ({ role, content })),
-      });
+    chatSocket.on("connect", () => {
+      chatSocket.emit(CHAT_EVENTS.GET_HISTORY);
+    });
 
+    chatSocket.on(CHAT_EVENTS.SESSION_HISTORY, ({ history }) => {
+      if (history.length > 0) {
+        setMessages(history.map((m) => ({ ...m, agentSteps: [] })));
+      }
+      setTimeout(() => setIsRestoring(false), 800);
+    });
+
+    chatSocket.on(CHAT_EVENTS.TOOL_CALL, (step) => {
+      pendingStepsRef.current = [...pendingStepsRef.current, { type: "tool_call", ...step }];
+      setAgentSteps([...pendingStepsRef.current]);
+    });
+
+    chatSocket.on(CHAT_EVENTS.TOOL_RESULT, (step) => {
+      pendingStepsRef.current = [...pendingStepsRef.current, { type: "tool_result", ...step }];
+      setAgentSteps([...pendingStepsRef.current]);
+    });
+
+    chatSocket.on(CHAT_EVENTS.REPLY, ({ reply }) => {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply, agentSteps: data.agentSteps },
+        { role: "assistant", content: reply, agentSteps: pendingStepsRef.current },
       ]);
-    } catch (err) {
+      pendingStepsRef.current = [];
+      setAgentSteps([]);
+      setIsThinking(false);
+    });
+
+    chatSocket.on(CHAT_EVENTS.ERROR, ({ error }) => {
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "Something went wrong. Please try again.",
-          agentSteps: [],
-        },
+        { role: "assistant", content: error, agentSteps: [] },
       ]);
-    } finally {
-      setLoading(false);
-    }
+      pendingStepsRef.current = [];
+      setIsThinking(false);
+    });
+
+    return () => {
+      chatSocket.off("connect");
+      chatSocket.off(CHAT_EVENTS.SESSION_HISTORY);
+      chatSocket.off(CHAT_EVENTS.TOOL_CALL);
+      chatSocket.off(CHAT_EVENTS.TOOL_RESULT);
+      chatSocket.off(CHAT_EVENTS.REPLY);
+      chatSocket.off(CHAT_EVENTS.ERROR);
+      chatSocket.disconnect();
+    };
+  }, []);
+
+  function sendMessage(content) {
+    setMessages((prev) => [...prev, { role: "user", content }]);
+    pendingStepsRef.current = [];
+    setAgentSteps([]);
+    setIsThinking(true);
+    chatSocket.emit(CHAT_EVENTS.MESSAGE, content);
   }
 
   function clearChat() {
-    setMessages([
-      {
-        role: "assistant",
-        content:
-          "Hi! I'm your user management assistant. I can create, update, delete, and manage user accounts.\n\nTry something like:\n• \"Create John Doe, john@example.com\"\n• \"Block jane@example.com for spamming\"\n• \"Update email of John Doe to johndoe@example.com\"\n• \"Delete alex@example.com\"",
-        agentSteps: [],
-      },
-    ]);
+    chatSocket.emit(CHAT_EVENTS.CLEAR_SESSION);
+    sessionStorage.removeItem("chat_session_id");
+    setMessages([initialMessage]);
+    setAgentSteps([]);
   }
 
-  return { messages, loading, sendMessage, clearChat };
+  const hasSession = messages.length > 1;
+
+  return { messages, agentSteps, isThinking, sendMessage, clearChat, hasSession, isRestoring };
 }

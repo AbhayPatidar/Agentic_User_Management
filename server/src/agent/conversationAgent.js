@@ -1,68 +1,80 @@
-import Groq from "groq-sdk";
-import { toolDeclarations } from "../tools/registry.js";
+import OpenAI from "openai";
+import { toolDeclarations, toolLabelMap } from "../tools/registry.js";
 import { executeTool } from "./toolExecutor.js";
 import { SYSTEM_INSTRUCTION } from "./prompts/userManagement.js";
+import { chatEmit } from "../socket/chat/emitter.js";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const baseURL = process.env.LLM_BASE_URL;
+const apiKey = process.env.LLM_API_KEY;
+const llmModel = process.env.LLM_MODEL;
+
+const openai = new OpenAI({ baseURL, apiKey });
 
 const tools = toolDeclarations.map((d) => ({ type: "function", function: d }));
 
+// Keyed by sessionId — survives reconnects, cleared only on explicit reset
+const sessions = new Map();
 
-export async function runConversationAgent(incomingMessages) {
-  const agentSteps = [];
+export function clearSession(sessionId) {
+  sessions.delete(sessionId);
+}
 
-  // Convert frontend chat history [{role, content}] → Groq/OpenAI format.
-  // Frontend uses "assistant" role — Groq also uses "assistant" (not "model").
-  const history = incomingMessages.map((m) => ({
-    role:    m.role === "assistant" ? "assistant" : "user",
-    content: m.content,
-  }));
+export function getSession(sessionId) {
+  return sessions.get(sessionId) ?? [];
+}
 
-  // System instruction goes first, then the full conversation history
-  let messages = [
-    { role: "system", content: SYSTEM_INSTRUCTION },
-    ...history,
-  ];
+export async function runConversationAgent({ message, socket, sessionId }) {
+  const history = sessions.get(sessionId) ?? [];
+  history.push({ role: "user", content: message });
 
-  // ── Agentic Loop ─────────────────────────────────────────────────────────
-  // Identical pattern to userAgent.js — only difference is the system prompt
-  // teaches the model to parse free-text intent instead of receiving
-  // structured form data.
+  let messages = [{ role: "system", content: SYSTEM_INSTRUCTION }, ...history];
+
   while (true) {
-    const response = await groq.chat.completions.create({
-      model: "openai/gpt-oss-120b",
-      messages,
-      tools,
-      tool_choice: "auto",
-    });
+    let response;
+    try {
+      response = await openai.chat.completions.create({
+        model: llmModel,
+        messages,
+        tools,
+        tool_choice: "auto",
+      });
+    } catch (err) {
+      console.error("AI service error:", err);
+      chatEmit.error(socket, "AI service unavailable. Please try again.");
+      return;
+    }
 
-    const message   = response.choices[0].message;
-    const toolCalls = message.tool_calls;
+    const message = response.choices[0].message;
+    const toolCalls = message.tool_calls ?? [];
 
-    // ── Branch A: Model wants to call tool(s) ────────────────────────────
-    if (toolCalls && toolCalls.length > 0) {
-      messages.push(message);
+    // ── Branch A: Model called tool(s) ───────────────────────────────────
+    if (toolCalls.length > 0) {
+      messages.push({ role: "assistant", tool_calls: toolCalls });
 
       for (const toolCall of toolCalls) {
         const name = toolCall.function.name;
         const args = JSON.parse(toolCall.function.arguments);
 
-        agentSteps.push({ type: "tool_call", tool: name, args });
+        const label = toolLabelMap[name] ?? name;
+        chatEmit.toolCall(socket, name, args, label);
         const result = await executeTool(name, args);
-        agentSteps.push({ type: "tool_result", tool: name, result });
+        chatEmit.toolResult(socket, name, result, label);
 
         messages.push({
-          role:         "tool",
+          role: "tool",
           tool_call_id: toolCall.id,
-          content:      JSON.stringify(result),
+          content: JSON.stringify(result),
         });
       }
 
       continue;
     }
 
-    // ── Branch B: Final conversational reply ─────────────────────────────
-    const reply = message?.content || "Done.";
-    return { reply, agentSteps };
+    // ── Branch B: Final text reply ────────────────────────────────────────
+    const fullContent = message.content ?? "";
+    history.push({ role: "assistant", content: fullContent });
+    sessions.set(sessionId, history);
+    chatEmit.reply(socket, fullContent);
+    return;
   }
 }

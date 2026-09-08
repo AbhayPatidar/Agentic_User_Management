@@ -1,9 +1,11 @@
 import bcrypt from "bcryptjs";
 import User from "../../models/User.js";
 import { USER_STATUS } from "../../constants/userStatus.js";
+import { logActivity } from "../../services/activityLogger.js";
 
 export const declaration = {
-  name: "create_user_in_db",
+  name:  "create_user_in_db",
+  label: "Creating user",
   description:
     "Hashes the password and saves the new user to MongoDB. Call this after you have a final password (either provided by the user or generated).",
   parameters: {
@@ -30,5 +32,13 @@ export async function execute({ fullName, email, password, isAutoPassword }) {
     isDeleted:      false,
     deletedAt:      null,
   });
+  await logActivity({
+    userId:    user._id,
+    userEmail: user.email,
+    userName:  user.fullName,
+    action:    "CREATE",
+    details:   { isAutoPassword },
+  });
+
   return { userId: user._id.toString(), fullName: user.fullName, email: user.email, status: user.status, success: true };
 }

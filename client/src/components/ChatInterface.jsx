@@ -3,19 +3,28 @@ import { useChat } from "../hooks/useChat";
 import ChatMessage from "./ChatMessage";
 
 export default function ChatInterface() {
-  const { messages, loading, sendMessage, clearChat } = useChat();
+  const { messages, agentSteps, isThinking, sendMessage, clearChat, hasSession, isRestoring } = useChat();
   const [input, setInput] = useState("");
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+  const prevLengthRef = useRef(1);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+    const added = messages.length - prevLengthRef.current;
+    prevLengthRef.current = messages.length;
+    // session restore adds many messages at once → jump instantly, no visible scroll
+    // new single message → smooth scroll
+    bottomRef.current?.scrollIntoView({ behavior: added > 1 ? "instant" : "smooth" });
+  }, [messages, isThinking]);
+
+  useEffect(() => {
+    if (!isThinking) textareaRef.current?.focus();
+  }, [isThinking]);
 
   function handleSubmit(e) {
     e.preventDefault();
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || isThinking) return;
     setInput("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "24px";
@@ -41,7 +50,8 @@ export default function ChatInterface() {
         </div>
         <button
           onClick={clearChat}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          disabled={!hasSession}
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           Clear
         </button>
@@ -49,21 +59,43 @@ export default function ChatInterface() {
 
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        {messages.map((msg, i) => (
-          <ChatMessage key={i} message={msg} />
-        ))}
+        {isRestoring ? (
+          <>
+            <div className="flex justify-start">
+              <div className="h-9 w-52 bg-gray-100 rounded-2xl rounded-bl-sm animate-pulse" />
+            </div>
+            <div className="flex justify-end">
+              <div className="h-9 w-32 bg-gray-100 rounded-2xl rounded-br-sm animate-pulse" />
+            </div>
+            <div className="flex justify-start">
+              <div className="h-9 w-64 bg-gray-100 rounded-2xl rounded-bl-sm animate-pulse" />
+            </div>
+          </>
+        ) : (
+          messages.map((msg, i) => (
+            <ChatMessage key={i} message={msg} />
+          ))
+        )}
 
-        {loading && (
+        {isThinking && (
           <div className="flex justify-start">
             <div className="flex items-end gap-2">
               <div className="w-7 h-7 rounded-full bg-gray-800 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
                 AI
               </div>
-              <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+              <div className="flex flex-col gap-1.5">
+<div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
+                  <div className="flex items-end gap-1.5">
+                    {(() => {
+                      const active = [...agentSteps].reverse().find((s) => s.type === "tool_call");
+                      return active ? (
+                        <span className="text-sm text-gray-500">{active.label}</span>
+                      ) : null;
+                    })()}
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -87,14 +119,14 @@ export default function ChatInterface() {
             }}
             onKeyDown={handleKeyDown}
             placeholder="Ask me anything..."
-            disabled={loading}
+            disabled={isThinking}
             className="flex-1 resize-none bg-transparent text-sm focus:outline-none disabled:opacity-50 leading-relaxed placeholder:text-gray-400 max-h-40 overflow-y-auto"
             style={{ height: "24px" }}
           />
           {input.trim() && (
             <button
               type="submit"
-              disabled={loading}
+              disabled={isThinking}
               className="flex-shrink-0 w-8 h-8 bg-gray-800 hover:bg-gray-900 disabled:opacity-40 text-white rounded-full flex items-center justify-center transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">

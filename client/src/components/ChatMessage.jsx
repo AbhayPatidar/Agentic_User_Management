@@ -43,7 +43,7 @@ export default function ChatMessage({ message }) {
   const hasSteps = message.agentSteps?.length > 0;
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"} animate-[fadeSlideIn_0.22s_ease]`}>
       <div className={`max-w-[80%] ${isUser ? "order-2" : ""}`}>
         {/* Avatar */}
         <div className={`flex items-end gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
